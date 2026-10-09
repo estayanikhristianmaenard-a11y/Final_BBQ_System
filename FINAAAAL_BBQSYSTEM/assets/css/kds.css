@@ -1,0 +1,115 @@
+/**
+ * KDS board styles (architecture §6): three color-coded columns, big touch
+ * targets, age heat. Loaded only on staff/kitchen.php.
+ */
+
+.kds-legend { display: flex; gap: 14px; align-items: center; }
+.kds-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.dot-new { background: #1d4ed8; }
+.dot-prep { background: var(--amber); }
+.dot-ready { background: var(--green); }
+
+.kds-totals {
+  display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 16px;
+}
+.kds-total {
+  background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  padding: 8px 14px; font-size: .9rem; color: var(--muted);
+}
+.kds-total strong { color: var(--ink); font-size: 1.15rem; margin-right: 4px; }
+
+.kds-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: start;
+  transition: opacity .2s ease;
+}
+/* Subtle loading state while the 10 s poll refreshes the board */
+.kds-board.is-refreshing { opacity: .72; }
+
+.kds-col {
+  background: #f6f4f0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 180px;
+}
+
+.kds-col-head {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: .82rem; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--muted); margin: 0 0 12px;
+}
+.kds-col-count {
+  background: var(--charcoal); color: #fff; border-radius: 999px;
+  min-width: 24px; text-align: center; padding: 2px 8px; font-weight: 700;
+}
+.kds-col-new { border-top: 4px solid #1d4ed8; }
+.kds-col-in-progress { border-top: 4px solid var(--amber); }
+.kds-col-ready { border-top: 4px solid var(--green); }
+
+.kds-cards { display: grid; gap: 12px; }
+
+.kds-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
+}
+.kds-card.age-card-hot { border-color: #fecaca; }
+
+.kds-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.kds-no { font-size: 1.05rem; letter-spacing: .5px; }
+.kds-age {
+  font-size: .78rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  background: #f0fdf4; color: var(--green);
+}
+.kds-age.age-warm { background: #fffbeb; color: var(--amber-700); }
+.kds-age.age-hot { background: #fef2f2; color: var(--red); animation: kds-pulse 1.6s ease-in-out infinite; }
+
+@keyframes kds-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .55; }
+}
+
+.kds-meta {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: .85rem; color: var(--muted); margin: 6px 0;
+}
+
+.kds-items { list-style: none; margin: 6px 0; padding: 0; }
+.kds-items li {
+  padding: 4px 0; border-bottom: 1px dashed var(--border);
+  font-size: .95rem;
+}
+.kds-items li:last-child { border-bottom: 0; }
+.kds-qty {
+  display: inline-block; min-width: 30px; font-weight: 700; color: var(--amber-700);
+}
+
+.kds-notes {
+  font-size: .87rem; background: #fffbeb; border: 1px solid #fde68a;
+  border-radius: 8px; padding: 6px 9px; margin: 8px 0 0;
+}
+
+.kds-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.kds-actions form { margin: 0; }
+.kds-actions .btn { min-height: 42px; padding: 10px 16px; font-size: .95rem; }
+.kds-btn-cancel { color: var(--red); border-color: #fecaca; }
+
+.kds-empty { text-align: center; color: var(--muted); font-size: .9rem; margin: 12px 0 4px; }
+
+@media (max-width: 900px) {
+  .kds-board { grid-template-columns: 1fr; }
+}
+
+/* Phase 9: stacked columns need breathing room on narrow screens */
+@media (max-width: 640px) {
+  .kds-totals { gap: 8px; }
+  .kds-total { padding: 7px 11px; font-size: .85rem; }
+  .kds-col { padding: 10px; }
+  .kds-actions .btn { flex: 1 1 100%; }
+}

@@ -1,0 +1,108 @@
+/**
+ * Receipt printing (architecture §11) — loaded with media="print", so it only
+ * applies in the print dialog / PDF output. A5- and 80mm-friendly: chrome is
+ * hidden, the receipt prints black-on-white at a narrow width.
+ */
+
+@page {
+  size: auto;
+  margin: 12mm;
+}
+
+html, body {
+  background: #fff !important;
+  color: #000 !important;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 11pt;
+}
+
+/* Hide everything that is not part of the receipt */
+.site-header,
+.site-footer,
+.receipt-actions,
+.page-head,
+.flash,
+.btn,
+form,
+a {
+  display: none !important;
+}
+
+main.container {
+  max-width: none !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.receipt-paper {
+  display: block !important;
+  width: auto;
+  max-width: 80mm;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #fff !important;
+  color: #000 !important;
+}
+
+.receipt-head {
+  text-align: center;
+  border-bottom: 1px dashed #000;
+  padding-bottom: 6pt;
+  margin-bottom: 6pt;
+}
+
+.receipt-logo {
+  display: none !important;
+}
+
+.receipt-store strong {
+  font-size: 14pt;
+  letter-spacing: 1px;
+}
+
+.receipt-store .muted,
+.receipt-foot .muted {
+  color: #333 !important;
+  font-size: 9pt;
+}
+
+.receipt-meta {
+  border: 0 !important;
+  padding: 0 !important;
+  background: #fff !important;
+}
+
+.receipt-row {
+  border-color: #ddd !important;
+  color: #000 !important;
+}
+
+.receipt-items th,
+.receipt-items td {
+  color: #000 !important;
+  border-bottom: 1px dashed #999 !important;
+  padding: 3pt 2pt !important;
+}
+
+.receipt-items .total-row td {
+  border-top: 1px solid #000 !important;
+  border-bottom: 0 !important;
+  font-weight: 700;
+}
+
+.badge.status {
+  border: 1px solid #000 !important;
+  background: #fff !important;
+  color: #000 !important;
+}
+
+.receipt-foot {
+  text-align: center;
+  border-top: 1px dashed #000;
+  padding-top: 6pt;
+  margin-top: 8pt;
+}
