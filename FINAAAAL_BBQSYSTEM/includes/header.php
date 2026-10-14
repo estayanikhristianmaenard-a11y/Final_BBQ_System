@@ -57,15 +57,17 @@ $navCurrent = static function (string $path) use ($currentScript): string {
           <?php endif; ?>
           <a class="nav-user" href="<?= e(user_home($currentUser['role'])) ?>"<?= $navCurrent(user_home($currentUser['role'])) ?>><?= e($currentUser['full_name']) ?></a>
         <?php endif; ?>
-        <form class="inline-form" method="post" action="<?= e(url('auth/logout.php')) ?>">
-          <?= csrf_field() ?>
-          <button class="btn btn-outline btn-sm" type="submit">Log out</button>
-        </form>
       <?php else: ?>
         <a href="<?= e(url('login.php')) ?>"<?= $navCurrent('login.php') ?>>Customer login</a>
         <a href="<?= e(url('auth/staff_login.php')) ?>"<?= $navCurrent('auth/staff_login.php') ?>>Staff/Manager login</a>
       <?php endif; ?>
     </nav>
+    <?php if ($currentUser): ?>
+      <form class="inline-form nav-logout" method="post" action="<?= e(url('auth/logout.php')) ?>">
+        <?= csrf_field() ?>
+        <button class="btn btn-primary btn-sm" type="submit">Log out</button>
+      </form>
+    <?php endif; ?>
   </div>
 </header>
 <main class="container" id="main-content">
