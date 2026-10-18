@@ -22,19 +22,14 @@ return [
         'debug'     => true,          // false in production: hides error details
         'timezone'  => 'Asia/Manila',
 
-        // OTP (One-Time PIN) login for customers
-        'otp_delivery_mode'           => 'debug', // 'debug' = show/log code locally (no SMS cost)
-                                                  // 'sms'   = use ProviderSmsSender (Phase 2+ integration)
+        // Email OTP login for customers, staff, and managers
+        // Real SMTP email delivery is configured separately in config/mail.php.
         'otp_expiry_minutes'          => 5,
         'otp_max_attempts'            => 3,
         'otp_resend_cooldown_seconds' => 60,
-        'otp_request_max_per_hour'    => 5,   // per phone
+        'otp_request_max_per_hour'    => 5,   // per email
         'otp_request_ip_max_per_hour' => 10,  // per IP address
-        'otp_verify_max_per_hour'     => 10,  // per phone
-
-        // Staff/Manager password login throttling
-        'staff_login_max_per_15min'      => 5,  // per phone
-        'staff_login_ip_max_per_15min'   => 10, // per IP address
+        'otp_verify_max_per_hour'     => 10,  // per email
 
         // Session lifetimes (seconds)
         'session_idle' => [

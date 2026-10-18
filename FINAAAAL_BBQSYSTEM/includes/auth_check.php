@@ -4,7 +4,7 @@
  * at the top of every protected page.
  */
 
-function require_login(): void
+function require_login(string $loginPath = 'login.php'): void
 {
     // Re-validates against the database; logs out deactivated/missing accounts.
     if (!empty($_SESSION['user_id']) && current_user() === null) {
@@ -18,6 +18,6 @@ function require_login(): void
             exit(json_encode(['ok' => false, 'error' => 'Login required']));
         }
         flash('error', 'Please log in to continue.');
-        redirect(url('login.php'));
+        redirect(url($loginPath));
     }
 }

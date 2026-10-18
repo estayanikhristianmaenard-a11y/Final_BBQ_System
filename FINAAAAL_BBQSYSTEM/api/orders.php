@@ -49,20 +49,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if (!$result['ok']) {
         $fail($result['message']);
     }
+    $message = 'Order is now ' . order_status_label($result['new_status']) . '.';
+    if ($result['new_status'] === 'COMPLETED') {
+        $message .= match ($result['receipt_email_status'] ?? 'PENDING') {
+            'SENT' => ' The receipt was emailed to the customer.',
+            'SKIPPED' => ' This older customer account has no verified email for the receipt.',
+            default => ' The receipt email is pending and will be retried.',
+        };
+    }
 
     if (is_ajax()) {
         exit(json_encode([
             'ok'     => true,
-            'message' => 'Order is now ' . order_status_label($result['new_status']) . '.',
+            'message' => $message,
             'status'  => $result['new_status'],
             'old_status' => $result['old_status'],
         ]));
     }
-    flash('success', 'Order is now ' . order_status_label($result['new_status']) . '.');
+    flash('success', $message);
     redirect(url(str_starts_with($returnTo, 'staff/') ? $returnTo : 'staff/kitchen.php'));
 }
 
 // --- GET: queue payload -------------------------------------------------------
+retry_receipt_emails();
 $queue = [];
 foreach (staff_active_queue() as $order) {
     $items = [];

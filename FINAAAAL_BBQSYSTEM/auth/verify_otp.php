@@ -1,14 +1,16 @@
 <?php
 /**
  * OTP verification — Step 2: enter the 6-digit code.
- * Enforces expiry, attempt limit, and per-phone rate limiting server-side.
+ * Enforces expiry, attempt limit, and per-email rate limiting server-side.
  */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
-$phone = $_SESSION['otp_phone'] ?? null;
-if (!$phone) {
+$email = $_SESSION['otp_email'] ?? null;
+$purpose = ($_SESSION['otp_purpose'] ?? '') === 'STAFF' ? 'STAFF' : 'CUSTOMER';
+$loginPage = $purpose === 'STAFF' ? 'auth/staff_login.php' : 'login.php';
+if (!$email) {
     flash('warning', 'Please request a verification code first.');
-    redirect(url('login.php'));
+    redirect(url($loginPage));
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
@@ -20,22 +22,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         redirect(url('auth/verify_otp.php'));
     }
 
-    $result = otp_verify($phone, $code);
+    $result = otp_verify($email, $code, $purpose);
     if ($result['ok']) {
-        $login = complete_otp_login($phone);
+        $login = complete_otp_login($email, $purpose);
         if ($login['ok']) {
             flash('success', 'Welcome! You are now logged in.');
-            redirect(url('customer/dashboard.php'));
+            redirect($purpose === 'STAFF' ? staff_login_destination($_SESSION['role']) : user_home($_SESSION['role']));
         }
         flash('error', $login['message']);
-        redirect(url('login.php'));
+        redirect(url($loginPage));
     }
 
     flash('error', $result['message']);
     redirect(url('auth/verify_otp.php'));
 }
 
-$debugOtp       = otp_debug_mode() ? ($_SESSION['debug_otp'] ?? null) : null;
 $resendIn       = max(0, (int) ($_SESSION['otp_resend_after'] ?? 0) - time());
 $expiresIn      = max(0, (int) ($_SESSION['otp_expires_at'] ?? 0) - time());
 $pageTitle      = 'Verify Code — BulkBites BBQ';
@@ -44,17 +45,11 @@ require __DIR__ . '/../includes/header.php';
 <div class="card auth-card">
   <h1>Enter verification code</h1>
   <p class="card-sub">
-    We sent a 6-digit code to <strong><?= e(mask_phone($phone)) ?></strong>.
+    We emailed a 6-digit code to <strong><?= e(mask_email($email)) ?></strong>.
     It expires in <strong><?= (int) ceil($expiresIn / 60) ?> minute(s)</strong>.
   </p>
 
-  <?php if ($debugOtp): ?>
-    <div class="notice">
-      <strong>Development mode</strong> (no SMS service): your code is
-      <code><?= e($debugOtp['code']) ?></code>
-      — also written to <code>logs/otp_debug.log</code>.
-    </div>
-  <?php endif; ?>
+  <p class="hint">Check your inbox and spam folder. Only the most recent code works.</p>
 
   <form method="post" action="<?= e(url('auth/verify_otp.php')) ?>">
     <?= csrf_field() ?>
@@ -68,14 +63,27 @@ require __DIR__ . '/../includes/header.php';
 
   <form method="post" action="<?= e(url('auth/resend_otp.php')) ?>" class="mt">
     <?= csrf_field() ?>
-    <button class="btn btn-outline btn-block" type="submit" <?= $resendIn > 0 ? 'disabled' : '' ?>>
+    <button class="btn btn-outline btn-block" type="submit" data-resend-seconds="<?= (int) $resendIn ?>" <?= $resendIn > 0 ? 'disabled' : '' ?>>
       <?= $resendIn > 0 ? 'Resend code (wait ' . (int) $resendIn . 's)' : 'Resend code' ?>
     </button>
   </form>
 
   <div class="divider">— — —</div>
   <p class="center muted" style="margin-bottom:0">
-    <a href="<?= e(url('login.php')) ?>">Use a different number</a>
+    <a href="<?= e(url($loginPage)) ?>">Use a different email</a>
   </p>
 </div>
+<script>
+(() => {
+  const button = document.querySelector('[data-resend-seconds]');
+  let remaining = Number(button.dataset.resendSeconds);
+  if (remaining <= 0) return;
+  const timer = setInterval(() => {
+    remaining = Math.max(0, remaining - 1);
+    button.disabled = remaining > 0;
+    button.textContent = remaining > 0 ? `Resend code (wait ${remaining}s)` : 'Resend code';
+    if (remaining === 0) clearInterval(timer);
+  }, 1000);
+})();
+</script>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

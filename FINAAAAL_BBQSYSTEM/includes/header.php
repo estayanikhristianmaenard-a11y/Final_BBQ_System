@@ -54,6 +54,7 @@ $navCurrent = static function (string $path) use ($currentScript): string {
             <a href="<?= e(url('manager/customers.php')) ?>"<?= $navCurrent('manager/customers.php') ?>>Customers</a>
             <a href="<?= e(url('manager/reports.php')) ?>"<?= $navCurrent('manager/reports.php') ?>>Reports</a>
             <a href="<?= e(url('manager/users.php')) ?>"<?= $navCurrent('manager/users.php') ?>>Staff</a>
+            <a href="<?= e(url('manager/email.php')) ?>"<?= $navCurrent('manager/email.php') ?>>Email</a>
           <?php endif; ?>
           <a class="nav-user" href="<?= e(user_home($currentUser['role'])) ?>"<?= $navCurrent(user_home($currentUser['role'])) ?>><?= e($currentUser['full_name']) ?></a>
         <?php endif; ?>

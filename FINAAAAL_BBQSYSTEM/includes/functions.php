@@ -162,7 +162,7 @@ function current_user(): ?array
         return null;
     }
 
-    $stmt = db()->prepare('SELECT id, full_name, phone, role, is_active FROM users WHERE id = ?');
+    $stmt = db()->prepare('SELECT id, full_name, phone, email, role, is_active FROM users WHERE id = ?');
     $stmt->execute([$id]);
     $row = $stmt->fetch();
 
@@ -207,4 +207,15 @@ function user_home(string $role): string
         default:
             return url('customer/dashboard.php');
     }
+}
+
+/** Consume the fixed email-setup destination only after a manager signs in. */
+function staff_login_destination(string $role): string
+{
+    $next = $_SESSION['staff_login_next'] ?? null;
+    unset($_SESSION['staff_login_next']);
+    if ($role === 'MANAGER' && $next === 'manager/email.php') {
+        return url('manager/email.php');
+    }
+    return user_home($role);
 }

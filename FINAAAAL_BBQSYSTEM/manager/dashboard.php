@@ -37,12 +37,19 @@ require dirname(__DIR__) . '/includes/header.php';
   <div>
     <h1>Manager dashboard</h1>
     <p class="muted">
-      Signed in as <strong><?= e($user['full_name']) ?></strong> (MANAGER · <?= e(mask_phone($user['phone'])) ?>)
+      Signed in as <strong><?= e($user['full_name']) ?></strong> (MANAGER · <?= e($user['email']) ?>)
       · figures computed live from MySQL
     </p>
   </div>
   <a class="btn btn-primary" href="<?= e(url('manager/reports.php')) ?>">&#128202; Full reports</a>
 </section>
+
+<?php if (!email_configured()): ?>
+  <div class="notice" role="status">
+    <strong>Connect an email sender</strong> to enable customer sign-in codes.
+    <a href="<?= e(url('manager/email.php')) ?>">Set up email delivery</a>
+  </div>
+<?php endif; ?>
 
 <div class="stat-grid">
   <a class="stat-card stat-new" href="<?= e(url('staff/orders.php')) ?>?status=ACTIVE">

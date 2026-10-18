@@ -42,6 +42,9 @@ if (!$receipt) {
 }
 
 $items = order_items((int) $receipt['order_id']);
+$emailDelivery = db()->prepare('SELECT status FROM receipt_email_deliveries WHERE order_id = ?');
+$emailDelivery->execute([$receipt['order_id']]);
+$emailStatus = $emailDelivery->fetchColumn();
 $customerName = $receipt['display_name'] ?: $receipt['full_name'];
 $pageTitle = 'Receipt ' . e($receipt['receipt_number']) . ' — BulkBites BBQ';
 require __DIR__ . '/../includes/header.php';
@@ -60,6 +63,9 @@ require __DIR__ . '/../includes/header.php';
   </div>
 </section>
 
+<?php if ($receipt['status'] === 'COMPLETED' && $emailStatus): ?>
+  <p class="receipt-actions muted"><?= $emailStatus === 'SENT' ? 'A copy of this receipt was sent to your email.' : ($emailStatus === 'SKIPPED' ? 'Your receipt is available here to view and print.' : 'Your receipt email is waiting for delivery. You can view or print it here.') ?></p>
+<?php endif; ?>
 <div class="receipt-paper" id="receipt">
   <div class="receipt-head">
     <div class="receipt-logo">&#128293;</div>

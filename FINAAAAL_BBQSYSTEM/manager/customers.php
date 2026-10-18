@@ -39,7 +39,7 @@ require __DIR__ . '/../includes/header.php';
   <div class="empty-state card">
     <div class="empty-icon">&#128101;</div>
     <p><strong><?= $q !== '' ? 'No customers match “' . e($q) . '”.' : 'No customer accounts yet.' ?></strong></p>
-    <p class="muted">Accounts are created automatically the first time a customer logs in with an OTP code.</p>
+    <p class="muted">Accounts are created automatically after a customer verifies their email code.</p>
   </div>
 <?php else: ?>
   <div class="card queue-wrap">
@@ -66,8 +66,8 @@ require __DIR__ . '/../includes/header.php';
               <?php if ($row['remarks']): ?><br><span class="queue-notes">&#128172; <?= e($row['remarks']) ?></span><?php endif; ?>
             </td>
             <td>
-              <?= e($row['phone']) ?>
-              <?php if ($row['email']): ?><br><span class="muted small"><?= e($row['email']) ?></span><?php endif; ?>
+              <?php if ($row['email']): ?><?= e($row['email']) ?><?php endif; ?>
+              <?php if ($row['phone']): ?><div class="muted small"><?= e($row['phone']) ?></div><?php endif; ?>
             </td>
             <td class="num"><strong><?= (int) $row['orders_n'] ?></strong></td>
             <td class="num"><strong><?= e(peso($row['spent'])) ?></strong></td>

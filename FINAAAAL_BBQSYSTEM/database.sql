@@ -45,7 +45,9 @@ DROP TABLE IF EXISTS `rate_limits`;
 DROP TABLE IF EXISTS `inventory_movements`;
 DROP TABLE IF EXISTS `order_status_history`;
 DROP TABLE IF EXISTS `notifications`;
+DROP TABLE IF EXISTS `receipt_email_deliveries`;
 DROP TABLE IF EXISTS `otp_records`;
+DROP TABLE IF EXISTS `email_otp_records`;
 DROP TABLE IF EXISTS `receipts`;
 DROP TABLE IF EXISTS `order_items`;
 DROP TABLE IF EXISTS `orders`;
@@ -58,13 +60,14 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- =====================================================================================
 -- 1. USERS — single authentication/role table for CUSTOMER, STAFF, MANAGER
---    Customers log in with phone + OTP (password_hash NULL).
---    Staff/Manager log in with phone + password (password_hash set).
+--    Customers log in with email + OTP (password_hash NULL).
+--    Staff/Manager log in with an authorized email + one-time emailed code.
 -- =====================================================================================
 CREATE TABLE `users` (
   `id`            INT NOT NULL AUTO_INCREMENT,
   `full_name`     VARCHAR(100) NOT NULL,
-  `phone`         VARCHAR(20)  NOT NULL COMMENT 'Login key, format 09XXXXXXXXX',
+  `phone`         VARCHAR(20) DEFAULT NULL COMMENT 'Staff login or optional legacy customer contact',
+  `email`         VARCHAR(254) DEFAULT NULL COMMENT 'Customer email login',
   `role`          ENUM('CUSTOMER','STAFF','MANAGER') NOT NULL DEFAULT 'CUSTOMER',
   `password_hash` VARCHAR(255) DEFAULT NULL COMMENT 'password_hash() bcrypt; NULL for OTP-only customers',
   `is_active`     TINYINT(1) NOT NULL DEFAULT 1 COMMENT '0 = deactivated, logged out on next request',
@@ -72,9 +75,9 @@ CREATE TABLE `users` (
   `updated_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_users_phone` (`phone`),
+  UNIQUE KEY `uq_users_email` (`email`),
   KEY `idx_users_role` (`role`),
-  CONSTRAINT `chk_users_phone`   CHECK (`phone` REGEXP '^09[0-9]{9}$'),
-  CONSTRAINT `chk_users_passwd`  CHECK (`role` = 'CUSTOMER' OR `password_hash` IS NOT NULL)
+  CONSTRAINT `chk_users_phone`   CHECK (`phone` REGEXP '^09[0-9]{9}$')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================================
@@ -84,7 +87,7 @@ CREATE TABLE `users` (
 CREATE TABLE `customers` (
   `user_id`      INT NOT NULL,
   `display_name` VARCHAR(100) DEFAULT NULL COMMENT 'Name shown on receipts',
-  `email`        VARCHAR(100) DEFAULT NULL,
+  `email`        VARCHAR(254) DEFAULT NULL,
   `address`      VARCHAR(255) DEFAULT NULL COMMENT 'Barangay/address for bulk orders',
   `remarks`      TEXT DEFAULT NULL COMMENT 'Manager notes',
   `created_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -251,6 +254,26 @@ CREATE TABLE `otp_records` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================================
+-- Email sign-in records. Legacy SMS records above are retained only for old data.
+-- =====================================================================================
+CREATE TABLE `email_otp_records` (
+  `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `email` VARCHAR(254) NOT NULL,
+  `purpose` ENUM('CUSTOMER','STAFF') NOT NULL DEFAULT 'CUSTOMER',
+  `otp_hash` VARCHAR(255) NOT NULL,
+  `attempts` INT NOT NULL DEFAULT 0,
+  `max_attempts` INT NOT NULL DEFAULT 3,
+  `expires_at` DATETIME NOT NULL,
+  `consumed_at` DATETIME DEFAULT NULL,
+  `resend_after` DATETIME NOT NULL,
+  `request_ip` VARCHAR(45) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY `idx_email_otp_email_id` (`email`, `id`),
+  KEY `idx_email_otp_purpose` (`email`, `purpose`, `id`),
+  KEY `idx_email_otp_expiry` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================================================
 -- 10. NOTIFICATIONS — one row per recipient (customer + each active staff/manager).
 --     user_id is always set; is_read tracks per-user read state.
 -- =====================================================================================
@@ -372,20 +395,30 @@ INSERT INTO `inventory` (`product_id`, `quantity_available`, `unit`, `low_stock_
   (5, 100, 'pcs', 10, 1),
   (6, 100, 'pcs', 10, 1);
 
--- Test staff/manager accounts (phone + password login — Phase 2)
---   MANAGER: 09170000001 / Manager123!
---   STAFF:   09170000002 / Staff123!
---   password_hash values are bcrypt hashes generated with PHP 8.2 password_hash().
---   CHANGE OR DELETE THESE BEFORE ANY REAL DEPLOYMENT.
-INSERT INTO `users` (`id`, `full_name`, `phone`, `role`, `password_hash`, `is_active`) VALUES
-  (1, 'BulkBites Manager', '09170000001', 'MANAGER', '$2y$10$H231z86NUpZMltB12Nuu9OMSltktDAKj8nQRlq09UB5JGfMOFyDuS', 1),
-  (2, 'BulkBites Staff',   '09170000002', 'STAFF',   '$2y$10$3T4eMGaxE5/MhsB4JeEVOu0kl2uNR4aLCjalo7wO/rF5kQockvcsO', 1);
+-- Only these three initial managers; additional personnel are added by a manager.
+INSERT INTO `users` (`full_name`, `email`, `role`, `password_hash`, `is_active`) VALUES
+  ('Khristian Maenard Estayani', 'estayani_khristianmaenard@plpasig.edu.ph', 'MANAGER', NULL, 1),
+  ('William Jake Casas', 'casas_williamjake@plpasig.edu.ph', 'MANAGER', NULL, 1),
+  ('Jullian Matthew Magtapat', 'magtapat_jullianmatthew@plpasig.edu.ph', 'MANAGER', NULL, 1);
 
--- Application settings (otp_delivery_mode = 'debug' shows/logs the OTP locally — no SMS cost)
+CREATE TABLE `receipt_email_deliveries` (
+  `order_id` INT NOT NULL PRIMARY KEY,
+  `recipient` VARCHAR(254) DEFAULT NULL,
+  `status` ENUM('PENDING','SENT','FAILED','SKIPPED') NOT NULL DEFAULT 'PENDING',
+  `attempts` INT NOT NULL DEFAULT 0,
+  `last_error` VARCHAR(40) DEFAULT NULL,
+  `next_attempt_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `sent_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY `idx_receipt_email_pending` (`status`, `next_attempt_at`),
+  CONSTRAINT `fk_receipt_email_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Application settings. Sender credentials are private and stored separately.
 INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
   ('store_name',          'BulkBites BBQ'),
   ('store_location',      'Greensite Compound, Sta. Lucia, Pasig City'),
-  ('otp_delivery_mode',   'debug'),
+  ('email_staff_defaults_v1', '1'),
   ('otp_expiry_minutes',  '5'),
   ('otp_max_attempts',    '3'),
   ('otp_resend_cooldown', '60');

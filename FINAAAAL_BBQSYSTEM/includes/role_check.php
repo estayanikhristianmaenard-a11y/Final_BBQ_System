@@ -13,7 +13,9 @@
 
 function require_role(string ...$roles): void
 {
-    require_login();
+    $staffOnly = !in_array('CUSTOMER', $roles, true)
+        && (bool) array_intersect(['STAFF', 'MANAGER'], $roles);
+    require_login($staffOnly ? 'auth/staff_login.php' : 'login.php');
 
     $user = current_user();
     if (!$user || !in_array($user['role'], $roles, true)) {

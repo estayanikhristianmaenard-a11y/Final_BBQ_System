@@ -1,5 +1,8 @@
 # BulkBites BBQ — System Architecture (Phase 0)
 
+> Historical design document. Customer authentication now uses email and real
+> SMTP one-time codes; see [EMAIL-LOGIN.md](EMAIL-LOGIN.md) for current setup.
+
 **Project:** BulkBites BBQ — Digital Ordering and Business Management System
 **Based on:** Treb's Ihawan, Greensite Compound, Sta. Lucia, Pasig City (near SM City East)
 **Stack:** HTML5 · CSS3 · JavaScript · PHP · MySQL · XAMPP (Apache, phpMyAdmin)

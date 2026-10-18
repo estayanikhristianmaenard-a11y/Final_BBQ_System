@@ -33,14 +33,17 @@ if (!is_file($configFile)) {
     die('Missing config/database.php — copy config.example.php to config/database.php and edit it.');
 }
 $GLOBALS['BB_CONFIG'] = require $configFile;
+$mailConfigFile = dirname(__DIR__) . '/config/mail.php';
+$GLOBALS['BB_CONFIG']['mail'] = is_file($mailConfigFile) ? require $mailConfigFile : [];
 
 // ---------------------------------------------------------------------------
 // 3. Shared helpers (defines config(), db(), e(), ...)
 // ---------------------------------------------------------------------------
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/csrf.php';
-require_once __DIR__ . '/sms.php';
+require_once __DIR__ . '/email.php';
 require_once __DIR__ . '/otp.php';
+require_once __DIR__ . '/receipt-email.php';
 require_once __DIR__ . '/auth_check.php';
 require_once __DIR__ . '/role_check.php';
 require_once __DIR__ . '/cart.php';

@@ -20,7 +20,7 @@ return [
         'debug'     => false,  // Phase 8 audit: never leak stack traces/SQL to HTTP clients
         'timezone'  => 'Asia/Manila',
 
-        'otp_delivery_mode'           => 'debug',
+        // Email sender credentials are configured separately in config/mail.php.
         'otp_expiry_minutes'          => 5,
         'otp_max_attempts'            => 3,
         'otp_resend_cooldown_seconds' => 60,

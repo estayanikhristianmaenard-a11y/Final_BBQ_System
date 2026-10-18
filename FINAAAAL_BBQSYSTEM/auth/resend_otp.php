@@ -1,10 +1,10 @@
 <?php
 /**
  * OTP resend handler (POST only) — re-runs the full request pipeline so the
- * cooldown and the hourly per-phone / per-IP rate limits apply again.
+ * cooldown and the hourly per-email / per-IP rate limits apply again.
  * (No human checkbox here: the page is only reachable from a verified OTP
  * request session, and the rate limiter is the control that actually bounds
- * abuse — at most 5 codes/hour/number, 10/hour/IP, 60 s apart.)
+ * abuse — at most 5 codes/hour/email, 10/hour/IP, 60 s apart.)
  */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
@@ -14,13 +14,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 
 csrf_verify();
 
-$phone = $_SESSION['otp_phone'] ?? null;
-if (!$phone) {
+$email = $_SESSION['otp_email'] ?? null;
+$purpose = ($_SESSION['otp_purpose'] ?? '') === 'STAFF' ? 'STAFF' : 'CUSTOMER';
+if (!$email) {
     flash('warning', 'Please request a verification code first.');
-    redirect(url('login.php'));
+    redirect(url($purpose === 'STAFF' ? 'auth/staff_login.php' : 'login.php'));
 }
 
-$result = otp_request($phone, client_ip());
+$result = otp_request($email, client_ip(), $purpose);
 
 if ($result['ok']) {
     $_SESSION['otp_resend_after'] = time() + $result['retry_after'];

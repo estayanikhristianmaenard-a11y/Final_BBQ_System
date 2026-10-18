@@ -181,10 +181,15 @@ function advance_order_status(int $orderId, string $newStatus, ?int $changedBy, 
             $message
         );
 
+        if ($newStatus === 'COMPLETED') {
+            queue_order_receipt($orderId);
+        }
         if ($own) {
             $pdo->commit();
         }
-        return ['ok' => true, 'message' => 'Status updated.', 'old_status' => $oldStatus, 'new_status' => $newStatus];
+        $receiptDelivery = $newStatus === 'COMPLETED' && $own ? send_order_receipt($orderId) : null;
+        return ['ok' => true, 'message' => 'Status updated.', 'old_status' => $oldStatus, 'new_status' => $newStatus,
+            'receipt_email_status' => $receiptDelivery['status'] ?? null];
     } catch (Throwable $e) {
         if ($own && $pdo->inTransaction()) {
             $pdo->rollBack();

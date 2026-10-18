@@ -1,6 +1,7 @@
 <?php
 /** Restore the bundled snapshot only into a new or completely empty database. */
 require __DIR__ . '/database-transfer.php';
+require dirname(__DIR__) . '/includes/email-migration.php';
 
 try {
     $config = transfer_config();
@@ -30,6 +31,10 @@ try {
         }
         $pdo->exec('CREATE DATABASE IF NOT EXISTS ' . $identifier . ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
         transfer_run($mysql, ['--default-character-set=utf8mb4', '--database=' . $config['name']], $config, $snapshot);
+        $pdo->exec('USE ' . $identifier);
+        migrate_email_login($pdo);
+        migrate_receipt_emails($pdo);
+        provision_default_managers($pdo);
         echo 'Restored the bundled database into ' . $config['name'] . ".\n";
         echo "Start Apache and open the application in your browser.\n";
     } finally {

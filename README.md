@@ -50,9 +50,16 @@ A later pull updates the saved snapshot file. It does not replace an existing PC
 database or combine orders created independently on two PCs. Sharing changing data
 between PCs requires a shared database or a hosted application.
 
-Restored staff and manager accounts use the passwords from the source PC. Customer
-login uses a phone number and OTP. The current debug mode displays the OTP when
-accessed using `localhost`; real SMS delivery has not been implemented.
+All accounts use an email address and a real emailed one-time code. Sign in as a
+manager and open **Email** to connect the Gmail sender once. The backend tests
+and saves the connection, then sends customer codes automatically; no code
+editing or setup script is required.
+See [email login setup](FINAAAAL_BBQSYSTEM/EMAIL-LOGIN.md) for App Password instructions.
+Existing installations must run `FINAAAAL_BBQSYSTEM/UPGRADE-EMAIL-LOGIN.bat` after
+pulling these changes. New database setup applies the upgrade automatically.
+The three listed school email addresses are the initial managers; old staff
+accounts are disabled. Managers add additional personnel from **Staff**.
+Customers receive an itemized receipt email when their order is completed.
 
 `FINAAAAL_BBQSYSTEM/database.sql` is the original demo schema and seed data. Importing
 it resets the tables and does not transfer the source PC's current records. Use the

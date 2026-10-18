@@ -1,0 +1,6 @@
+/FINAAAAL_BBQSYSTEM/config/database.php
+/FINAAAAL_BBQSYSTEM/config/mail.php
+/FINAAAAL_BBQSYSTEM/config/mail-*
+/FINAAAAL_BBQSYSTEM/logs/*
+!/FINAAAAL_BBQSYSTEM/logs/.htaccess
+/.tmp/

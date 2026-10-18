@@ -19,7 +19,7 @@ require __DIR__ . '/../includes/header.php';
 <section class="page-head">
   <div>
     <h1>Hello, <?= e($user['full_name']) ?> 👋</h1>
-    <p class="muted">Signed in as <strong><?= e($user['role']) ?></strong> · <?= e(mask_phone($user['phone'])) ?></p>
+    <p class="muted">Signed in as <strong><?= e($user['role']) ?></strong> · <?= e($user['email']) ?></p>
   </div>
   <a class="btn btn-primary" href="<?= e(url('staff/kitchen.php')) ?>">&#127859; Open Kitchen Display</a>
 </section>

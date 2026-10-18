@@ -273,10 +273,10 @@ function manager_customers_rows(string $q = ''): array
 function manager_user_rows(): array
 {
     return db()->query(
-        'SELECT u.id, u.full_name, u.phone, u.role, u.is_active, u.created_at,
+        'SELECT u.id, u.full_name, u.email, u.role, u.is_active, u.created_at,
                 (SELECT COUNT(*) FROM orders WHERE handled_by = u.id) AS handled_n
          FROM users u
-         WHERE u.role IN ("STAFF", "MANAGER")
+         WHERE u.role IN ("STAFF", "MANAGER") AND u.email IS NOT NULL
          ORDER BY FIELD(u.role, "MANAGER", "STAFF"), u.full_name'
     )->fetchAll();
 }
