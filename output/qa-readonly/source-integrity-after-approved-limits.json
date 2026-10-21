@@ -1,0 +1,11 @@
+{
+  "checked": 189,
+  "approvedLimitFilesChanged": [
+    "bulkbites-bbq/database/current.sql",
+    "bulkbites-bbq/includes/store-migration.php",
+    "bulkbites-bbq/includes/store.php",
+    "bulkbites-bbq/manager/store.php",
+    "bulkbites-bbq/tests/store-cases.php"
+  ],
+  "unapprovedChanges": []
+}

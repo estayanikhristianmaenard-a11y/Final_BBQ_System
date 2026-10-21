@@ -1,0 +1,130 @@
+<?php
+/** Runs only inside the baseline's disposable database. */
+if (PHP_SAPI!=='cli' || !isset($pdo,$name) || !preg_match('/^bulkbites_baseline_[a-f0-9]{12}$/D',$name)) { exit(1); }
+$settings=store_settings();
+$schedule=array_replace($settings,['ordering_status'=>'OPEN','use_hours'=>1,'opens_at'=>'09:00:00','closes_at'=>'18:00:00']);
+$at=static fn(string $time)=>new DateTimeImmutable('2026-10-20 ' . $time,new DateTimeZone('Asia/Manila'));
+$actualHours=array_replace($schedule,['opens_at'=>'10:00:00','closes_at'=>'22:00:00']);
+baseline_check(!store_is_open($actualHours,$at('09:59')) && store_is_open($actualHours,$at('10:00')) && store_is_open($actualHours,$at('21:59')) && !store_is_open($actualHours,$at('22:00')), 'Shop accepts orders from 10 AM until 10 PM and closes at the boundary');
+baseline_check(!store_is_open($schedule,$at('08:59')) && store_is_open($schedule,$at('09:00')) && !store_is_open($schedule,$at('18:00')), 'Daily hours include opening and exclude closing');
+$night=array_replace($schedule,['opens_at'=>'22:00:00','closes_at'=>'06:00:00']);
+baseline_check(store_is_open($night,$at('23:30')) && store_is_open($night,$at('03:00')) && !store_is_open($night,$at('06:00')), 'Overnight hours work across midnight');
+baseline_check(!store_is_open(array_replace($night,['ordering_status'=>'PAUSED']),$at('23:30')) && !store_is_open(array_replace($night,['ordering_status'=>'CLOSED']),$at('23:30')), 'Manual pause and closure override the schedule');
+$valid=array_replace($settings,['ordering_status'=>'OPEN','use_hours'=>0,'opens_at'=>'09:00','closes_at'=>'18:00','max_active_orders'=>1,'cooldown_seconds'=>60,'max_item_qty'=>2,'max_order_qty'=>3]);
+$pdo->exec('UPDATE store_settings SET use_hours=1,opens_at="10:00:00",closes_at="22:00:00"');$settings=store_settings();
+baseline_check(!set_ordering_status('CLOSED',$customer)['ok'] && store_settings()['ordering_status']===$settings['ordering_status'], 'Customer cannot toggle new ordering');
+$pdo->prepare('INSERT INTO users(full_name,email,role) VALUES ("Ordering control staff",?,"STAFF")')->execute(['ordering-staff-'.bin2hex(random_bytes(4)).'@example.test']);$orderingStaff=(int)$pdo->lastInsertId();
+baseline_check(set_ordering_status('CLOSED',$orderingStaff)['ok'] && store_settings()['ordering_status']==='CLOSED', 'Active staff can close new ordering');
+$closed=store_settings();
+baseline_check((int)$closed['updated_by']===$orderingStaff && $closed['opens_at']===$settings['opens_at'] && $closed['closes_at']===$settings['closes_at'] && $closed['use_hours']===$settings['use_hours'] && $closed['max_order_qty']===$settings['max_order_qty'], 'Staff toggle records actor and preserves hours and manager limits');
+baseline_check(!set_ordering_status('PAUSED',$orderingStaff)['ok'] && store_settings()['ordering_status']==='CLOSED', 'Staff control accepts only its two supported actions');
+baseline_check(set_ordering_status('CLOSED',$orderingStaff)['ok'], 'Repeated close is harmless');
+$pdo->exec('UPDATE users SET is_active=0 WHERE id='.$orderingStaff);
+baseline_check(!set_ordering_status('OPEN',$orderingStaff)['ok'] && store_settings()['ordering_status']==='CLOSED', 'Deactivated staff cannot reopen ordering');
+$pdo->exec('UPDATE users SET is_active=1 WHERE id='.$orderingStaff);
+baseline_check(set_ordering_status('OPEN',$orderingStaff)['ok'] && store_settings()['ordering_status']==='OPEN', 'Active staff can reopen ordering');
+$scheduledOpen=array_replace(store_settings(),['use_hours'=>1,'opens_at'=>'10:00:00','closes_at'=>'22:00:00']);
+baseline_check(!store_is_open($scheduledOpen,$at('23:00')) && store_is_open($scheduledOpen,$at('12:00')), 'Staff Open does not bypass the daily opening hours');
+baseline_check(set_ordering_status('CLOSED',$manager)['ok'] && set_ordering_status('OPEN',$manager)['ok'], 'Manager can use the same staff ordering controls');
+baseline_check(!save_store_settings($valid,$customer)['ok'], 'Customer cannot change store settings');
+foreach ([['opens_at'=>'25:00'],['use_hours'=>1,'opens_at'=>'09:00','closes_at'=>'09:00'],['max_item_qty'=>4],['cooldown_seconds'=>-1],['pickup_location'=>'']] as $invalid) {
+    baseline_check(!save_store_settings(array_replace($valid,$invalid),$manager)['ok'], 'Invalid store settings are rejected without partial updates');
+}
+baseline_check(save_store_settings($valid,$manager)['ok'], 'Manager saves valid store settings');
+$pdo->prepare('INSERT INTO users (full_name,email,role) VALUES (?,?,"CUSTOMER")')->execute(['Pickup test customer','pickup-'.bin2hex(random_bytes(4)).'@example.test']);
+$shopCustomer=(int)$pdo->lastInsertId();
+$pdo->prepare('INSERT INTO products (category_id,name,price) VALUES (?,"Pickup rules product",10)')->execute([$category]);$shopProduct=(int)$pdo->lastInsertId();
+$pdo->prepare('INSERT INTO inventory (product_id,quantity_available) VALUES (?,100)')->execute([$shopProduct]);
+$shopStock=static fn()=>(int)$pdo->query('SELECT quantity_available FROM inventory WHERE product_id='.$shopProduct)->fetchColumn();
+$shopOrder=static function(int $quantity=1,string $pickup='Test pickup',string $phone='') use($shopCustomer,$shopProduct): array {
+    $_SESSION['cart']=[$shopProduct=>$quantity];return place_order($shopCustomer,'CASH','Pickup fixture',$pickup,$phone);
+};
+$pdo->exec('UPDATE store_settings SET ordering_status="CLOSED"');
+baseline_check(!$shopOrder()['ok'] && $shopStock()===100 && cart_count()===1, 'Closed store blocks checkout on the server and preserves cart and stock');
+$pdo->exec('UPDATE store_settings SET ordering_status="PAUSED"');
+baseline_check(!$shopOrder()['ok'] && $shopStock()===100, 'Paused store blocks direct checkout');
+$pdo->exec('UPDATE store_settings SET ordering_status="OPEN"');
+baseline_check(!$shopOrder(1,'')['ok'] && !$shopOrder(1,'Test','not-a-number')['ok'], 'Checkout validates pickup name and optional contact');
+baseline_check(!$shopOrder(3)['ok'] && $shopStock()===100, 'Per-item quantity cap is enforced without reserving stock');
+$pdo->exec('UPDATE store_settings SET max_item_qty=5');
+baseline_check(!$shopOrder(4)['ok'] && $shopStock()===100, 'Total quantity cap is enforced without reserving stock');
+$pdo->exec('UPDATE store_settings SET max_item_qty=2');
+$first=$shopOrder(2,'Ana Pickup','09123456789');baseline_check($first['ok'], 'Pickup checkout succeeds with valid details');
+$shopId=(int)$first['order_id'];$row=$pdo->query('SELECT * FROM orders WHERE id='.$shopId)->fetch();
+baseline_check($row['pickup_name']==='Ana Pickup' && $row['pickup_contact']==='09123456789' && $row['pickup_location']===$valid['pickup_location'], 'Order snapshots pickup name, contact, and location');
+$receiptTest=receipt_email_content(['pickup_name'=>'Ana <pickup>','pickup_location'=>'New <counter>','display_name'=>'Old name','full_name'=>'Old name','issued_at'=>date('Y-m-d H:i:s'),'receipt_number'=>'R-TEST','order_number'=>'BB-TEST','total'=>'10.00','payment_method'=>'CASH'],[]);
+baseline_check(str_contains($receiptTest['text'],'New <counter>') && str_contains($receiptTest['html'],'Ana &lt;pickup&gt;') && str_contains($receiptTest['html'],'New &lt;counter&gt;'), 'Receipt email uses and escapes saved pickup name and location');
+baseline_check(!$shopOrder()['ok'] && $shopStock()===98, 'Active-order cap prevents another order and a second stock deduction');
+baseline_check(!cancel_customer_order($shopId,$customer)['ok'] && $shopStock()===98, 'Another customer cannot cancel the order');
+$revision=customer_order_revision($row);
+baseline_check(cancel_customer_order($shopId,$shopCustomer)['ok'] && $shopStock()===100, 'Owner cancellation before acceptance releases stock');
+baseline_check(!cancel_customer_order($shopId,$shopCustomer)['ok'] && $shopStock()===100, 'Repeated cancellation cannot release stock twice');
+baseline_check(customer_order_revision($pdo->query('SELECT * FROM orders WHERE id='.$shopId)->fetch())!==$revision, 'Cancellation changes the owner polling revision');
+baseline_check(!$shopOrder()['ok'], 'Cooldown still applies after cancellation');
+$pdo->exec('UPDATE orders SET created_at=DATE_SUB(NOW(),INTERVAL 2 MINUTE) WHERE customer_id='.$shopCustomer);
+$second=$shopOrder();baseline_check($second['ok'], 'New order is allowed after cooldown and cancellation');$secondId=(int)$second['order_id'];
+baseline_check(advance_order_status($secondId,'ACCEPTED',$manager)['ok'], 'Staff accepts pickup order');
+$row=$pdo->query('SELECT * FROM orders WHERE id='.$secondId)->fetch();
+baseline_check(abs(strtotime($row['estimated_ready_at'])-time()-(int)$valid['prep_minutes']*60)<5, 'Acceptance sets preparation estimate from store settings');
+baseline_check(!cancel_customer_order($secondId,$shopCustomer)['ok'] && $shopStock()===99, 'Customer cancellation after acceptance is blocked without returning stock');
+baseline_check(!set_order_estimate($secondId,$shopCustomer,10)['ok'] && !set_order_estimate($secondId,$manager,0)['ok'], 'Estimate changes enforce personnel access and valid minutes');
+$revision=customer_order_revision($row);
+baseline_check(set_order_estimate($secondId,$manager,45)['ok'], 'Staff can revise an accepted order estimate');
+$row=$pdo->query('SELECT * FROM orders WHERE id='.$secondId)->fetch();
+baseline_check(customer_order_revision($row)!==$revision && str_contains(order_estimate_text($row),'Estimated ready'), 'Estimate revision updates polling and customer guidance');
+$row['estimated_ready_at']=date('Y-m-d H:i:s',time()-60);
+baseline_check(str_contains(order_estimate_text($row),'taking longer'), 'Overdue estimate asks customer to wait instead of promising readiness');
+baseline_check(advance_order_status($secondId,'CANCELLED',$manager)['ok'] && $shopStock()===100, 'Staff cancellation before cooking releases reserved stock');
+$pdo->exec('UPDATE store_settings SET cooldown_seconds=0');
+$_SESSION['cart']=[$shopProduct=>1];$paid=place_order($shopCustomer,'GCASH','Paid cancellation','Test pickup');$paidId=(int)$paid['order_id'];
+baseline_check(record_verified_online_payment($paidId,'pickup-paid-cancel',1000,'PHP',true)['ok'] && cancel_customer_order($paidId,$shopCustomer)['ok'], 'Paid new order may be cancelled by its owner');
+$row=$pdo->query('SELECT * FROM orders WHERE id='.$paidId)->fetch();
+baseline_check($row['payment_status']==='REFUND_REQUIRED' && $shopStock()===100, 'Paid cancellation requires a traceable refund and returns stock once');
+// Plenty of stock: this race must be blocked by the account lock, not lack of stock.
+$race=baseline_parallel([['checkout',(string)$shopCustomer,(string)$shopProduct],['checkout',(string)$shopCustomer,(string)$shopProduct]]);
+baseline_check(count(array_filter($race,static fn($result)=>$result['ok']))===1 && $shopStock()===99, 'Concurrent checkouts from separate sessions cannot bypass one-active-order limit');
+$raceId=(int)$pdo->query('SELECT id FROM orders WHERE customer_id='.$shopCustomer.' AND status="NEW" ORDER BY id DESC LIMIT 1')->fetchColumn();
+$race=baseline_parallel([['cancel',(string)$raceId,(string)$shopCustomer],['accept',(string)$raceId,(string)$manager]]);
+$row=$pdo->query('SELECT * FROM orders WHERE id='.$raceId)->fetch();
+baseline_check(count(array_filter($race,static fn($result)=>$result['ok']))===1 && (($row['status']==='CANCELLED' && $shopStock()===100) || ($row['status']==='ACCEPTED' && $shopStock()===99)), 'Cancellation and staff acceptance race resolves once without incorrect stock release');
+// Requested bulk-order boundaries: use ample stock to isolate quantity rules.
+$bulkSettings=array_replace($valid,['max_item_qty'=>250,'max_order_qty'=>1500,'max_active_orders'=>10,'cooldown_seconds'=>0]);
+baseline_check(save_store_settings($bulkSettings,$manager)['ok'], 'Manager can save 250 pieces per item and 1500 per order');
+baseline_check(!save_store_settings(array_replace($bulkSettings,['max_item_qty'=>251]),$manager)['ok'], 'Settings reject an item limit above 250');
+baseline_check(!save_store_settings(array_replace($bulkSettings,['max_order_qty'=>1501]),$manager)['ok'], 'Settings reject a total limit above 1500');
+$bulkProducts=[];
+for($bulkIndex=0;$bulkIndex<6;$bulkIndex++) {
+    $pdo->prepare('INSERT INTO products (category_id,name,price) VALUES (?,?,1)')->execute([$category,'Bulk limit product '.$bulkIndex]);
+    $bulkProduct=(int)$pdo->lastInsertId();$bulkProducts[]=$bulkProduct;
+    $pdo->prepare('INSERT INTO inventory (product_id,quantity_available,low_stock_threshold) VALUES (?,1000,0)')->execute([$bulkProduct]);
+}
+$_SESSION['cart']=[$bulkProducts[0]=>250];
+baseline_check(place_order($shopCustomer,'CASH','250-item boundary','Bulk customer')['ok'], 'Exactly 250 pieces of one item can be ordered with sufficient stock');
+$_SESSION['cart']=[$bulkProducts[0]=>251];$bulkRejected=place_order($shopCustomer,'CASH','251-item boundary','Bulk customer');
+baseline_check(!$bulkRejected['ok'] && str_contains($bulkRejected['message'],'Limit 250'), '251 pieces of one item are rejected despite sufficient stock');
+$_SESSION['cart']=array_fill_keys($bulkProducts,250);
+baseline_check(place_order($shopCustomer,'CASH','1500-total boundary','Bulk customer')['ok'], 'Six items at 250 each can make one 1500-piece order');
+$_SESSION['cart']=array_fill_keys($bulkProducts,250);$_SESSION['cart'][$bulkProducts[0]]=251;
+$bulkRejected=place_order($shopCustomer,'CASH','1501-total boundary','Bulk customer');
+baseline_check(!$bulkRejected['ok'] && str_contains($bulkRejected['message'],'Limit 1500'), '1501 total pieces are rejected');
+$_SESSION['cart']=[];
+// Hiding a category also blocks saved carts and direct checkout requests.
+$pdo->prepare('INSERT INTO categories (name,is_active) VALUES (?,1)')->execute(['Hidden category regression']);
+$hiddenCategory=(int)$pdo->lastInsertId();
+$pdo->prepare('INSERT INTO products (category_id,name,price) VALUES (?,"Hidden category product",10)')->execute([$hiddenCategory]);
+$hiddenProduct=(int)$pdo->lastInsertId();
+$pdo->prepare('INSERT INTO inventory (product_id,quantity_available) VALUES (?,100)')->execute([$hiddenProduct]);
+baseline_check(cart_add($hiddenProduct,2)['ok'], 'Visible category product can be added to cart');
+$pdo->exec('UPDATE categories SET is_active=0 WHERE id='.$hiddenCategory);
+$hiddenView=cart_view();
+baseline_check($hiddenView['unavailable']===1 && $hiddenView['items']===0 && $hiddenView['subtotal']===0.0, 'Saved hidden-category item is unavailable and excluded from totals');
+baseline_check(!cart_add($hiddenProduct,1)['ok'], 'Direct add cannot bypass hidden category');
+$hiddenOrders=(int)$pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn();
+$hiddenResult=place_order($shopCustomer,'CASH','Hidden category','Test customer');
+baseline_check(!$hiddenResult['ok'] && (int)$pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn()===$hiddenOrders && (int)$pdo->query('SELECT quantity_available FROM inventory WHERE product_id='.$hiddenProduct)->fetchColumn()===100, 'Direct checkout rejects hidden category without an order or stock deduction');
+baseline_check(!cart_set_qty($hiddenProduct,3)['ok'] && cart_has($hiddenProduct)===0, 'Quantity update removes unavailable hidden-category item');
+$pdo->exec('UPDATE categories SET is_active=1 WHERE id='.$hiddenCategory);
+baseline_check(cart_add($hiddenProduct,1)['ok'] && cart_view()['unavailable']===0, 'Reactivating category restores ordering');
+$_SESSION['cart']=[];
+// Restore test configuration so later cases can be added independently.
+$pdo->exec('UPDATE store_settings SET cooldown_seconds=0,max_active_orders=1000,max_item_qty=1000,max_order_qty=1000');

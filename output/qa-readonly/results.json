@@ -1,0 +1,31 @@
+{
+  "backend": 215,
+  "smtp": 90,
+  "http": 65,
+  "browser": 114,
+  "pageViews": 75,
+  "sourceFilesChecked": 189,
+  "approvedLimitChanges": [
+    "bulkbites-bbq/database/current.sql",
+    "bulkbites-bbq/includes/store-migration.php",
+    "bulkbites-bbq/includes/store.php",
+    "bulkbites-bbq/manager/store.php",
+    "bulkbites-bbq/tests/store-cases.php"
+  ],
+  "unapprovedChanges": [],
+  "findings": {
+    "history": {
+      "placedYesterdayCompletedTodayVisible": true,
+      "visibleAfterHistoryTab": false
+    },
+    "categoryVisibility": {
+      "hiddenOnMenu": true,
+      "existingCartOrderAccepted": true,
+      "orderUrl": "http://127.0.0.1:8092/customer/order.php?ref=BB-261021-0009&placed=1"
+    }
+  },
+  "limits": {
+    "perItem": 250,
+    "perOrder": 1500
+  }
+}
