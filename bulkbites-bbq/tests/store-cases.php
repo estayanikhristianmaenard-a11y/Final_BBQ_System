@@ -26,6 +26,12 @@ baseline_check(set_ordering_status('OPEN',$orderingStaff)['ok'] && store_setting
 $scheduledOpen=array_replace(store_settings(),['use_hours'=>1,'opens_at'=>'10:00:00','closes_at'=>'22:00:00']);
 baseline_check(!store_is_open($scheduledOpen,$at('23:00')) && store_is_open($scheduledOpen,$at('12:00')), 'Staff Open does not bypass the daily opening hours');
 baseline_check(set_ordering_status('CLOSED',$manager)['ok'] && set_ordering_status('OPEN',$manager)['ok'], 'Manager can use the same staff ordering controls');
+$manualOpen=store_settings();
+baseline_check($manualOpen['ordering_override']==='OPEN' && store_is_open($manualOpen,$at('23:00')), 'Manager Open overrides hours outside the daily schedule');
+baseline_check(set_ordering_status('CLOSED',$manager)['ok'] && !store_is_open(store_settings(),$at('12:00')), 'Manager Close overrides ordering even during business hours');
+baseline_check(!set_ordering_status('AUTO',$orderingStaff)['ok'] && !set_ordering_status('AUTO',$customer)['ok'], 'Only managers can resume automatic hours');
+baseline_check(set_ordering_status('AUTO',$manager)['ok'] && store_settings()['ordering_override']==='AUTO' && !store_is_open(store_settings(),$at('23:00')) && store_is_open(store_settings(),$at('12:00')), 'Automatic mode restores the original opening boundaries');
+baseline_check(store_settings()['opens_at']===$settings['opens_at'] && store_settings()['closes_at']===$settings['closes_at'], 'Manager overrides preserve the configured daily hours');
 baseline_check(!save_store_settings($valid,$customer)['ok'], 'Customer cannot change store settings');
 foreach ([['opens_at'=>'25:00'],['use_hours'=>1,'opens_at'=>'09:00','closes_at'=>'09:00'],['max_item_qty'=>4],['cooldown_seconds'=>-1],['pickup_location'=>'']] as $invalid) {
     baseline_check(!save_store_settings(array_replace($valid,$invalid),$manager)['ok'], 'Invalid store settings are rejected without partial updates');
@@ -39,6 +45,21 @@ $shopStock=static fn()=>(int)$pdo->query('SELECT quantity_available FROM invento
 $shopOrder=static function(int $quantity=1,string $pickup='Test pickup',string $phone='') use($shopCustomer,$shopProduct): array {
     $_SESSION['cart']=[$shopProduct=>$quantity];return place_order($shopCustomer,'CASH','Pickup fixture',$pickup,$phone);
 };
+// Put actual server time outside a small future opening window to exercise checkout.
+$futureStart=date('H:i',time()+3600);$futureEnd=date('H:i',time()+7200);
+$pdo->prepare('UPDATE store_settings SET use_hours=1,opens_at=?,closes_at=?')->execute([$futureStart,$futureEnd]);
+set_ordering_status('AUTO',$manager);
+baseline_check(!store_is_open(store_settings()) && !$shopOrder()['ok'] && $shopStock()===100, 'Automatic hours block actual checkout outside the configured window');
+set_ordering_status('OPEN',$manager);$overrideOrder=$shopOrder();
+baseline_check($overrideOrder['ok'] && $shopStock()===99, 'Manager manual Open permits real checkout outside hours and reserves stock');
+set_ordering_status('CLOSED',$manager);
+baseline_check(!$shopOrder()['ok'] && $shopStock()===99, 'Manual Close blocks checkout immediately');
+baseline_check(cancel_customer_order((int)$overrideOrder['order_id'],$shopCustomer)['ok'] && $shopStock()===100, 'Existing order cancellation still works while manually closed');
+set_ordering_status('AUTO',$manager);
+baseline_check(!store_is_open(store_settings()), 'Resuming automatic hours closes ordering outside hours');
+set_ordering_status('OPEN',$manager);
+baseline_check(save_store_settings($valid,$manager)['ok'] && store_settings()['ordering_override']==='AUTO', 'Saving store settings clears the manual override');
+$pdo->exec('UPDATE orders SET created_at=DATE_SUB(NOW(),INTERVAL 2 MINUTE) WHERE customer_id='.$shopCustomer);
 $pdo->exec('UPDATE store_settings SET ordering_status="CLOSED"');
 baseline_check(!$shopOrder()['ok'] && $shopStock()===100 && cart_count()===1, 'Closed store blocks checkout on the server and preserves cart and stock');
 $pdo->exec('UPDATE store_settings SET ordering_status="PAUSED"');

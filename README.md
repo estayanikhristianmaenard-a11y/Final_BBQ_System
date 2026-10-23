@@ -39,7 +39,9 @@ Pickup names, store hours/Open/Closed control, order limits, preparation estimat
 automatic status checks, and customer cancellation are implemented. Configure the
 shop under **Manager > Store**. See [pickup ordering controls](docs/STORE-ORDERING.md).
 Staff can use **Open ordering / Close ordering** from their dashboard or Kitchen
-Display. These controls preserve the daily schedule and keep existing orders accessible.
+Display. Manager Open/Close actions override daily hours, including for testing outside
+10 AM-10 PM. Use **Use automatic hours** to resume the schedule. Staff Open follows
+the schedule. Existing orders stay accessible in either mode.
 Existing installations should back up and run `bulkbites-bbq/UPGRADE-PAYMENTS.bat`
 to add the store/pickup schema.
 
@@ -47,6 +49,11 @@ Current improvement plan: [workflow](docs/WORKFLOW.md).
 Guided public demo setup: double-click `bulkbites-bbq/SETUP-DEMO.bat`.
 See [startup and QR instructions](docs/DEMO-SETUP.md) and the
 [professor presentation checklist](docs/DEMO-CHECKLIST.md).
+Staff and managers sign in with their authorized email and password. Existing
+accounts can use **Set or reset password** to verify their email once and choose
+a password. Managers can also set passwords under **Settings > Advanced > Staff accounts**.
+New personnel accounts include a password. Customer checkout still uses email verification.
+
 Customer UI: public menu and guest cart are available at the app's root URL.
 Email verification happens at checkout and preserves the cart. The first UI pass
 includes responsive layouts, food illustrations, and a floating mobile cart link.

@@ -32,9 +32,16 @@ requests require POST and a valid CSRF token.
 
 Closing stops new checkout; the menu, existing order tracking, preparation, and
 pickup stay available. Closed remains set until staff or a manager reopens it.
-Opening follows the daily 10 AM–10 PM schedule. Outside those hours, the shop
-stays closed to new orders even if the manual status is Open. Managers retain
-the full controls in Manager > Store.
+Staff Open follows the daily 10 AM-10 PM schedule. Managers can use the same
+button to open outside operating hours for testing. Manager Close also takes
+effect during business hours. The dashboard labels this as a manual override;
+it remains until another Open/Close action, **Use automatic hours**, or a Store
+settings save. **Use automatic hours** resumes the configured daily schedule.
+Configured hours and order limits are preserved. Saving Store settings clears
+the manual override. Existing orders remain available while ordering is closed.
+
+The override is stored in the existing settings table; no schema upgrade is needed.
+
 
 Verified staff controls with 170 isolated baseline assertions and 57 HTTP access
 checks. A disposable browser app confirmed customer menu closure/reopening and

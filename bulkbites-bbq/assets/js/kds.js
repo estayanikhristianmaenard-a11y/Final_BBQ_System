@@ -158,9 +158,13 @@
     var orderingForm = document.querySelector('[data-ordering-control]');
     if (orderingForm && data.ordering) {
       document.querySelector('[data-ordering-label]').textContent = data.ordering.label;
-      var open = data.ordering.status === 'OPEN';
+      var open = data.ordering.is_open === true;
       orderingForm.querySelector('[name=ordering_status]').value = open ? 'CLOSED' : 'OPEN';
-      var orderingButton = orderingForm.querySelector('button');
+      var orderingButton = orderingForm.querySelector('[data-ordering-toggle]');
+      var modeLabel = document.querySelector('[data-ordering-mode]');
+      if (modeLabel) modeLabel.textContent = data.ordering.mode_label;
+      var automaticButton = orderingForm.querySelector('[data-ordering-auto]');
+      if (automaticButton) automaticButton.hidden = data.ordering.override === 'AUTO';
       orderingButton.textContent = open ? 'Close ordering' : 'Open ordering';
       orderingButton.classList.toggle('btn-outline', open);
       orderingButton.classList.toggle('btn-primary', !open);

@@ -197,7 +197,7 @@ function complete_otp_login(string $email, string $purpose = 'CUSTOMER'): array
     $_SESSION['role'] = $user['role'] ?? 'CUSTOMER';
     $_SESSION['login_at'] = time();
     $_SESSION['last_activity'] = time();
-    unset($_SESSION['csrf_token'], $_SESSION['human_token'], $_SESSION['debug_otp'],
+    unset($_SESSION['csrf_token'], $_SESSION['human_token'], $_SESSION['debug_otp'], $_SESSION['personnel_password_proof'],
         $_SESSION['otp_phone'], $_SESSION['otp_email'], $_SESSION['otp_purpose'], $_SESSION['otp_resend_after'], $_SESSION['otp_expires_at']);
     return ['ok' => true, 'message' => 'Logged in successfully.'];
 }

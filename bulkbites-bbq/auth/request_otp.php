@@ -4,7 +4,7 @@
  */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 $purpose = ($_POST['login_type'] ?? '') === 'staff' ? 'STAFF' : 'CUSTOMER';
-$loginPage = $purpose === 'STAFF' ? 'auth/staff_login.php' : 'login.php';
+$loginPage = $purpose === 'STAFF' ? 'auth/staff_login.php?mode=code' : 'login.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     redirect(url($loginPage));

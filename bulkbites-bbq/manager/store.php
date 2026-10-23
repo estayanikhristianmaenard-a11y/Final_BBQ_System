@@ -14,6 +14,7 @@ $pageTitle='Store settings — BulkBites BBQ';require dirname(__DIR__).'/include
 <?php require dirname(__DIR__) . '/includes/settings-nav.php'; ?>
 <p class="notice" role="status"><?= e(store_status_text($settings)) ?>. Existing orders continue when new ordering is closed or paused.</p>
 <?php if($error): ?><p class="flash flash-error" role="alert"><?= e($error) ?></p><?php endif; ?>
+<p class="hint">Saving these settings clears the manual hours override. Use the Dashboard Open/Close button for testing outside operating hours.</p>
 <form method="post" class="store-settings" action="<?= e(url('manager/store.php')) ?>">
 <?= csrf_field() ?>
 <div class="dash-grid">

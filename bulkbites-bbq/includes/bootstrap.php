@@ -49,6 +49,7 @@ require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/email.php';
 require_once __DIR__ . '/otp.php';
+require_once __DIR__ . '/personnel-auth.php';
 require_once __DIR__ . '/receipt-email.php';
 require_once __DIR__ . '/auth_check.php';
 require_once __DIR__ . '/role_check.php';

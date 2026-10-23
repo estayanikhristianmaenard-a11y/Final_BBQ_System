@@ -1,5 +1,5 @@
 <?php
-/** Managers explicitly add personnel emails. Every account uses emailed codes. */
+/** Managers authorize personnel accounts and manage their passwords. */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_role('MANAGER');
 $user = current_user();
@@ -12,9 +12,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $name = trim((string) ($_POST['full_name'] ?? ''));
         $email = normalize_email((string) ($_POST['email'] ?? ''));
         $role = strtoupper((string) ($_POST['role'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
         if (mb_strlen($name) < 2 || mb_strlen($name) > 100 || !valid_login_email($email)
-            || !in_array($role, ['STAFF', 'MANAGER'], true)) {
-            flash('error', 'Enter a name, valid email, and STAFF or MANAGER role.');
+            || !in_array($role, ['STAFF', 'MANAGER'], true) || !personnel_password_valid($password)) {
+            flash('error', 'Enter a name, valid email, role, and password of 8-72 characters.');
             redirect($back);
         }
         try {
@@ -28,18 +29,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 redirect($back);
             }
             if ($existing) {
-                $pdo->prepare('UPDATE users SET full_name = ?, role = ?, password_hash = NULL, is_active = 1 WHERE id = ?')
-                    ->execute([$name, $role, $existing['id']]);
+                $pdo->prepare('UPDATE users SET full_name = ?, role = ?, password_hash = ?, is_active = 1 WHERE id = ?')
+                    ->execute([$name, $role, password_hash($password, PASSWORD_DEFAULT), $existing['id']]);
             } else {
-                $pdo->prepare('INSERT INTO users (full_name, email, phone, role, password_hash) VALUES (?, ?, NULL, ?, NULL)')
-                    ->execute([$name, $email, $role]);
+                $pdo->prepare('INSERT INTO users (full_name, email, phone, role, password_hash) VALUES (?, ?, NULL, ?, ?)')
+                    ->execute([$name, $email, $role, password_hash($password, PASSWORD_DEFAULT)]);
             }
             $pdo->commit();
-            flash('success', $role . ' account added. They can sign in with their email and a one-time code.');
+            flash('success', $role . ' account added. They can sign in with their email and password.');
         } catch (Throwable $error) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             flash('error', 'Could not add that account. It may already exist.');
         }
+        redirect($back);
+    }
+    if ($action === 'password') {
+        $result = personnel_password_save((int)($_POST['user_id'] ?? 0), (string)($_POST['password'] ?? ''), (int)$user['id']);
+        flash($result['ok'] ? 'success' : 'error', $result['message']);
         redirect($back);
     }
     if ($action === 'toggle') {
@@ -72,12 +78,12 @@ $pageTitle = 'Staff accounts — BulkBites BBQ';
 require dirname(__DIR__) . '/includes/header.php';
 ?>
 <section class="page-head">
-  <div><h1>Staff &amp; managers</h1><p class="muted">Only emails added here can access the staff or manager login. All accounts use emailed one-time codes.</p></div>
+  <div><h1>Staff &amp; managers</h1><p class="muted">Only emails added here can access the staff or manager login. Staff and managers sign in with email and password.</p></div>
 </section>
 <?php require dirname(__DIR__) . '/includes/settings-nav.php'; ?>
 <div class="crud-grid">
   <details class="card record-create" data-editing="false" open>
-    <summary>Add an authorized email</summary>
+    <summary>Add staff or manager</summary>
     <form method="post" action="<?= e($back) ?>">
       <?= csrf_field() ?>
       <input type="hidden" name="action" value="create">
@@ -90,8 +96,9 @@ require dirname(__DIR__) . '/includes/header.php';
           <option value="MANAGER">MANAGER — full access</option>
         </select>
       </div>
+      <div class="form-group"><label for="u-password">Password</label><input type="password" id="u-password" name="password" minlength="8" maxlength="72" autocomplete="new-password" required><p class="hint">Use 8-72 characters. Share the password directly with the account owner.</p></div>
       <button class="btn btn-primary" type="submit">Add account</button>
-      <p class="hint">No permanent password is needed. Adding a customer's existing email authorizes that account for the selected role.</p>
+      <p class="hint">Adding a customer's existing email authorizes that account for the selected role.</p>
     </form>
   </details>
   <section class="card" style="overflow-x:auto">
@@ -109,7 +116,16 @@ require dirname(__DIR__) . '/includes/header.php';
             <input type="hidden" name="action" value="toggle">
             <input type="hidden" name="user_id" value="<?= (int) $account['id'] ?>">
             <button class="btn btn-sm btn-outline" type="submit" <?= (int) $account['id'] === (int) $user['id'] ? 'disabled' : '' ?>><?= (int) $account['is_active'] ? 'Deactivate' : 'Reactivate' ?></button>
-          </form></td>
+          </form>
+          <details class="mt"><summary>Set password</summary>
+            <form method="post" action="<?= e($back) ?>">
+              <?= csrf_field() ?>
+              <input type="hidden" name="action" value="password">
+              <input type="hidden" name="user_id" value="<?= (int) $account['id'] ?>">
+              <div class="form-group"><label for="password-<?= (int)$account['id'] ?>">New password</label><input type="password" id="password-<?= (int)$account['id'] ?>" name="password" minlength="8" maxlength="72" autocomplete="new-password" required></div>
+              <button class="btn btn-sm btn-primary" type="submit">Save password</button>
+            </form>
+          </details></td>
         </tr>
       <?php endforeach; ?>
       </tbody>

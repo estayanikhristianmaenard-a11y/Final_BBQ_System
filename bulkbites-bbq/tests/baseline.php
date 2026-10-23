@@ -213,6 +213,7 @@ try {
     require __DIR__ . '/demo-payment-cases.php';
     require __DIR__ . '/business-review-cases.php';
     require __DIR__ . '/delivery-cases.php';
+    require __DIR__ . '/personnel-cases.php';
     foreach ($gaps as $gap) { echo 'WORKFLOW GAP: ' . $gap . "\n"; }
     echo $checks . ' baseline assertions passed; ' . count($gaps) . " workflow gaps recorded.\n";
 } catch (Throwable $error) {

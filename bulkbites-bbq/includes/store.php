@@ -4,12 +4,16 @@ function store_settings(bool $lock = false): array
 {
     $row = db()->query('SELECT * FROM store_settings WHERE id = 1' . ($lock ? ' LOCK IN SHARE MODE' : ''))->fetch();
     if (!$row) { throw new RuntimeException('Store setup is missing. Run UPGRADE-PAYMENTS.bat.'); }
+    $mode = db()->query("SELECT setting_value FROM settings WHERE setting_key='ordering_manual_override'")->fetchColumn();
+    $row['ordering_override'] = in_array($mode, ['OPEN','CLOSED'], true) ? $mode : 'AUTO';
     $row['pickup_location'] = preg_replace('/Pasig City[.,\s]*$/i', 'Pasig City, Philippines', $row['pickup_location']);
     return $row;
 }
 function store_is_open(array $settings, ?DateTimeImmutable $now = null): bool
 {
     if ($settings['ordering_status'] !== 'OPEN') { return false; }
+    if (($settings['ordering_override'] ?? 'AUTO') === 'OPEN') { return true; }
+    if (($settings['ordering_override'] ?? 'AUTO') === 'CLOSED') { return false; }
     if (!(int) $settings['use_hours']) { return true; }
     $time = ($now ?? new DateTimeImmutable('now', new DateTimeZone(config('app.timezone', 'Asia/Manila'))))->format('H:i');
     $start = substr((string) $settings['opens_at'], 0, 5); $end = substr((string) $settings['closes_at'], 0, 5);
@@ -20,6 +24,14 @@ function store_status_text(array $settings): string
 {
     if (store_is_open($settings)) { return 'Open for orders'; }
     return $settings['ordering_status'] === 'PAUSED' ? 'Ordering is temporarily paused' : 'Closed for new orders';
+}
+function store_ordering_mode_text(array $settings): string
+{
+    return match ($settings['ordering_override'] ?? 'AUTO') {
+        'OPEN'=>'Manual open. Ordering stays open until you close it or resume automatic hours.',
+        'CLOSED'=>'Manually closed. Reopen ordering or resume automatic hours.',
+        default=>(int)$settings['use_hours'] ? 'Automatic hours. Managers can override them with Open or Close ordering.' : 'Daily hours are disabled. Use Open or Close ordering.',
+    };
 }
 function store_hours_text(array $settings): string
 {
@@ -51,18 +63,25 @@ function validate_store_settings(array $input): array
     if ($result['pickup_location'] === '') { throw new InvalidArgumentException('Enter the pickup location.'); }
     return $result;
 }
-/** Staff can toggle new ordering; hours and other manager settings stay intact. */
+/** Manager actions override hours; staff actions continue to follow the schedule. */
 function set_ordering_status(string $status, int $actor): array
 {
-    if (!in_array($status,['OPEN','CLOSED'],true)) { return ['ok'=>false,'message'=>'Choose Open ordering or Close ordering.']; }
+    if (!in_array($status,['OPEN','CLOSED','AUTO'],true)) return ['ok'=>false,'message'=>'Choose Open, Close, or automatic hours.'];
     return order_transaction(static function (PDO $pdo) use ($status,$actor): array {
         require_payment_staff($pdo,$actor);
+        $role=$pdo->prepare('SELECT role FROM users WHERE id=?');$role->execute([$actor]);
+        $manager=$role->fetchColumn()==='MANAGER';
+        if ($status==='AUTO' && !$manager) throw new RuntimeException('Only a manager can resume automatic hours.');
         $settings=$pdo->query('SELECT * FROM store_settings WHERE id=1 FOR UPDATE')->fetch();
-        if (!$settings) { throw new RuntimeException('Store settings are missing.'); }
-        $pdo->prepare('UPDATE store_settings SET ordering_status=?,updated_by=? WHERE id=1')->execute([$status,$actor]);
-        $settings['ordering_status']=$status;
-        $message=$status==='CLOSED' ? 'New ordering is closed. Existing orders can still be prepared and collected.'
-            : (store_is_open($settings) ? 'New ordering is open.' : 'Ordering is enabled for the scheduled hours. The shop is currently outside opening hours.');
+        if (!$settings) throw new RuntimeException('Store settings are missing.');
+        $mode=$manager && $status!=='AUTO' ? $status : 'AUTO';
+        $enabled=$status==='AUTO' ? 'OPEN' : $status;
+        $pdo->prepare('UPDATE store_settings SET ordering_status=?,updated_by=? WHERE id=1')->execute([$enabled,$actor]);
+        $pdo->prepare('INSERT INTO settings (setting_key,setting_value) VALUES ("ordering_manual_override",?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)')->execute([$mode]);
+        $settings['ordering_status']=$enabled;$settings['ordering_override']=$mode;
+        $message=$status==='AUTO' ? 'Automatic opening hours resumed.' : ($status==='CLOSED'
+            ? 'New ordering is closed. Existing orders stay available.'
+            : (store_is_open($settings) ? 'New ordering is open.' : 'Ordering is enabled for the scheduled hours. The shop is currently outside opening hours.'));
         return ['ok'=>true,'message'=>$message];
     });
 }
@@ -74,7 +93,8 @@ function save_store_settings(array $input, int $manager): array
         require_payment_staff($pdo,$manager,true);
         $fields = array_map(static fn($key)=>$key . ' = ?', array_keys($values));
         $pdo->prepare('UPDATE store_settings SET ' . implode(', ', $fields) . ', updated_by = ? WHERE id = 1')->execute([...array_values($values),$manager]);
-        return ['ok'=>true,'message'=>'Store settings saved.'];
+        $pdo->exec("DELETE FROM settings WHERE setting_key='ordering_manual_override'");
+        return ['ok'=>true,'message'=>'Store settings saved. Manual hours override cleared.'];
     });
 }
 function pickup_details(?string $name, string $contact, int $customerId): array

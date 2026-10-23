@@ -119,6 +119,6 @@ echo json_encode([
     'counts' => staff_order_counts(),
     'orders' => $queue,
     'summary' => $summary === null ? null : array_intersect_key($summary, array_flip(['orders_today','active_now','sales_today','completed_today','cancelled_today'])),
-    'ordering' => ['status'=>$ordering['ordering_status'], 'label'=>store_status_text($ordering)],
+    'ordering' => ['status'=>$ordering['ordering_status'], 'label'=>store_status_text($ordering), 'is_open'=>store_is_open($ordering), 'override'=>$ordering['ordering_override'], 'mode_label'=>store_ordering_mode_text($ordering)],
     'low_stock' => array_map(static fn($row) => ['name'=>$row['name'],'quantity'=>(int)$row['quantity_available']], staff_low_stock()),
 ]);

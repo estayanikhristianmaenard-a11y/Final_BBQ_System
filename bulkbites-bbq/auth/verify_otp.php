@@ -26,6 +26,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($result['ok']) {
         $login = complete_otp_login($email, $purpose);
         if ($login['ok']) {
+            if ($purpose === 'STAFF') {
+                $_SESSION['personnel_password_proof'] = ['user_id'=>(int)$_SESSION['user_id'], 'expires_at'=>time()+600];
+                redirect(url('auth/staff_password.php'));
+            }
             flash('success', 'Welcome! You are now logged in.');
             redirect($purpose === 'STAFF' ? staff_login_destination($_SESSION['role']) : customer_login_destination($_SESSION['role']));
         }
